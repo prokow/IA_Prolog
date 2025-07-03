@@ -1,46 +1,61 @@
-% Fará a consulta dos dados de trajetos entre cidades no arquivo dados.pl
+% Consulta os dados das cidades e conexões do arquivo dados.pl
 :- consult('dados.pl').
 
-% Regra para percorrer caminhos sem repetir cidades
-caminho(Origem, Destino, Caminho, Distancia) :-
-    caminho(Origem, Destino, [Origem], CaminhoInvertido, 0, Distancia),
-    reverse(CaminhoInvertido, Caminho).
-
-caminho(Destino, Destino, Caminho, Caminho, Dist, Dist).
-caminho(Atual, Destino, Visitadas, CaminhoFinal, DistAtual, DistFinal) :-
-    ligacao(Atual, Prox, Distancia),
-    \+ member(Prox, Visitadas),
-    DistNova is DistAtual + Distancia,
-    caminho(Prox, Destino, [Prox|Visitadas], CaminhoFinal, DistNova, DistFinal).
 
 
-% Mostrar todos os caminhos
+% Predicado principal para encontrar caminhos entre cidades
+% Pré-condição: Origem e Destino são átomos representando cidades existentes.
+% Pós-condição:
+%   - Caminho é uma ListaTotal de cidades (em ordem reversa) conectando Origem a Destino.
+%   - Distancia é a soma total das distâncias do caminho.
+pode_ir(CidadeOrigem, CidadeDestino, Caminho, Distancia) :-
+    busca(CidadeOrigem, CidadeDestino, [CidadeOrigem], Caminho, 0, Distancia).
+
+
+% Caso base: CidadeOrigem = CidadeDestino
+busca(Cidade, Cidade, CaminhoAcumulado, CaminhoAcumulado, Dist, Dist).
+
+
+% Caso recursivo: procurar próxima cidade conectada
+busca(CidadeAtual, CidadeDestino, Visitadas, CaminhoFinal, DistAcum, DistFinal) :-
+    ligacao(CidadeAtual, ProxCidade, DistEntre),
+    \+ member(ProxCidade, Visitadas),  % evita ciclo
+    DistNova is DistAcum + DistEntre,
+    busca(ProxCidade, CidadeDestino, [ProxCidade|Visitadas], CaminhoFinal, DistNova, DistFinal).
+
+
+% Mostra todos os caminhos entre a cidade inicial e a final
 mostrar_todos_os_caminhos :-
     cidade_inicial(I), cidade_final(F),
-    findall([Caminho,Dist], caminho(I,F,Caminho,Dist), Lista),
-    imprimir_caminhos(Lista),
-    menor_caminho(Lista, MenorCaminho, MenorDist),
-    format('\n *- Menor caminho: ~w --> ~w km -* \n', [MenorCaminho, MenorDist]).
+    findall([Caminho,Dist], pode_ir(I,F,Caminho,Dist), ListaTotal), %Encontre TODAS as soluções possíveis para pode_ir(I,F,Caminho,Dist). Para cada solução que encontrar, guarde o Caminho e a Dist em uma pequena lista [Caminho, Dist]. No final, junte todas essas pequenas listas em uma lista gigante chamada Lista.
+    imprimir_caminhos(ListaTotal), 
+    menor(ListaTotal, MenorCaminho, MenorDist),
+    reverse(MenorCaminho, CaminhoCorreto), % Inverte o caminho para a ordem correta
+    format('\n** Menor caminho: ~w com ~w km **\n', [CaminhoCorreto, MenorDist]).
 
-
-
-% Imprimir caminhos
+% Impressão
 imprimir_caminhos([]).
-imprimir_caminhos([[Caminho, Distancia]|Resto]) :-
-    format('Caminho: ~w  --> Distancia: ~w km\n', [Caminho, Distancia]),
-    imprimir_caminhos(Resto).
+imprimir_caminhos([[Caminho,Dist]|T]) :-
+    reverse(Caminho, CaminhoCorreto),
+    format('Caminho: ~w --> Distancia: ~w km\n', [CaminhoCorreto, Dist]),
+    imprimir_caminhos(T).
 
+% Menor caminho com distância mínima
+menor([[Caminho,Dist]|Resto], MenorC, MenorD) :-
+    menor_aux(Resto, Caminho, Dist, MenorC, MenorD).
 
+menor_aux([], Caminho, Dist, Caminho, Dist).
 
-% Encontrar menor caminho
-menor_caminho([[C,D]|Resto], MenorCaminho, MenorDist) :-
-    menor_caminho_aux(Resto, C, D, MenorCaminho, MenorDist).
-
-
-menor_caminho_aux([], Caminho, Dist, Caminho, Dist).
-menor_caminho_aux([[C,D]|Resto], CaminhoMin, DistMin, CaminhoFinal, DistFinal) :-
-    ( D < DistMin ->
-        menor_caminho_aux(Resto, C, D, CaminhoFinal, DistFinal)
+menor_aux([[C,D]|T], CMin, DMin, CMF, DMF) :-
+    ( D < DMin ->
+        menor_aux(T, C, D, CMF, DMF)
     ;
-        menor_caminho_aux(Resto, CaminhoMin, DistMin, CaminhoFinal, DistFinal)
+        menor_aux(T, CMin, DMin, CMF, DMF)
     ).
+
+
+% Inicia a busca e exibe os resultados necessários
+iniciar :-
+    nl, write('--------------Iniciando busca!--------------'), nl,
+    mostrar_todos_os_caminhos,
+    nl, write('--------------Busca concluida!--------------').
